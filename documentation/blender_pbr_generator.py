@@ -1,276 +1,169 @@
-"""
-Blender Python Script: Procedural PBR Material Generator
-For use in Blender's scripting console or as addon
-
-This script creates procedural PBR materials in Blender for:
-- Polished Gold (jewelry)
-- Diamond/Crystal (clear, highly refractive)
-- Rubber (textured, matte)
-- Metallic (polished, brushed)
-- Fabric/Mesh (woven texture)
-
-Usage:
-1. Open Blender
-2. Switch to Shading workspace
-3. Open Scripting console
-4. Paste this script
-5. Run (Alt+P)
-"""
-
 import bpy
-from mathutils import Vector
 
-# ===== MATERIAL 1: POLISHED GOLD =====
-def create_gold_material(name="Gold_Polished"):
-    """Create polished gold material with procedural textures"""
-    
-    mat = bpy.data.materials.new(name=name)
+def hex_to_rgb(hex_color):
+    """Converts a hex color string to an RGB tuple."""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4)) + (1,)
+
+def create_polished_gold():
+    """Creates a Polished Gold PBR material."""
+    mat = bpy.data.materials.new(name="Gold_Polished")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    # Clear default nodes
-    nodes.clear()
-    
-    # Principled BSDF
-    principal = nodes.new(type="ShaderNodeBsdfPrincipled")
-    principal.inputs["Base Color"].default_value = (0.839, 0.647, 0.455, 1.0)  # Gold color
-    principal.inputs["Metallic"].default_value = 1.0
-    principal.inputs["Roughness"].default_value = 0.35
-    
-    # Color Ramp for Roughness variation
-    color_ramp = nodes.new(type="ShaderNodeValRamp")
-    color_ramp.color_ramp.elements[0].position = 0.3
-    color_ramp.color_ramp.elements[1].position = 0.4
-    
-    # Noise Texture for Roughness
-    noise_rough = nodes.new(type="ShaderNodeTexNoise")
-    noise_rough.inputs["Scale"].default_value = 15
-    noise_rough.inputs["Detail"].default_value = 5
-    
-    # Noise Texture for Normal
-    noise_normal = nodes.new(type="ShaderNodeTexNoise")
-    noise_normal.inputs["Scale"].default_value = 50
-    noise_normal.inputs["Detail"].default_value = 3
-    
-    # Bump to Normal
-    bump = nodes.new(type="ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.3
-    
-    # Output
-    output = nodes.new(type="ShaderNodeOutputMaterial")
-    
-    # Connect nodes
-    links.new(noise_rough.outputs["Fac"], color_ramp.inputs["Fac"])
-    links.new(color_ramp.outputs["Color"], principal.inputs["Roughness"])
-    links.new(noise_normal.outputs["Fac"], bump.inputs["Height"])
-    links.new(bump.outputs["Normal"], principal.inputs["Normal"])
-    links.new(principal.outputs["BSDF"], output.inputs["Surface"])
-    
-    return mat
+    bsdf = nodes.get("Principled BSDF")
 
+    # Set material properties based on documentation
+    bsdf.inputs["Base Color"].default_value = hex_to_rgb("#D4A574")
+    bsdf.inputs["Roughness"].default_value = 0.35
+    bsdf.inputs["Metallic"].default_value = 1.0
 
-# ===== MATERIAL 2: DIAMOND/CLEAR =====
-def create_diamond_material(name="Diamond_Clear"):
-    """Create realistic diamond material with refraction"""
+    # Add subtle surface imperfections with a noise texture
+    noise_texture = nodes.new(type="ShaderNodeTexNoise")
+    noise_texture.inputs["Scale"].default_value = 50.0
+    noise_texture.location = (-300, 0)
+
+    bump_node = nodes.new(type="ShaderNodeBump")
+    bump_node.inputs["Strength"].default_value = 0.1
+    bump_node.location = (-150, 0)
+
+    mat.node_tree.links.new(noise_texture.outputs["Fac"], bump_node.inputs["Height"])
+    mat.node_tree.links.new(bump_node.outputs["Normal"], bsdf.inputs["Normal"])
     
-    mat = bpy.data.materials.new(name=name)
+    print("Created 'Gold_Polished' material.")
+
+def create_clear_diamond():
+    """Creates a Clear Diamond PBR material."""
+    mat = bpy.data.materials.new(name="Diamond_Clear")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+
+    # Set material properties for diamond
+    bsdf.inputs["Base Color"].default_value = hex_to_rgb("#FFFACD")
+    bsdf.inputs["Roughness"].default_value = 0.05
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["IOR"].default_value = 1.5  # Crucial for refraction
+    bsdf.inputs["Transmission"].default_value = 1.0 # Make it transparent
+    
+    print("Created 'Diamond_Clear' material.")
+
+def create_black_rubber():
+    """Creates a Black Rubber PBR material with a tread pattern."""
+    mat = bpy.data.materials.new(name="Rubber_Black")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    nodes.clear()
-    
-    # Principled BSDF
-    principal = nodes.new(type="ShaderNodeBsdfPrincipled")
-    principal.inputs["Base Color"].default_value = (1.0, 0.98, 0.8, 1.0)  # Near white
-    principal.inputs["Metallic"].default_value = 0.0
-    principal.inputs["Roughness"].default_value = 0.05
-    principal.inputs["IOR"].default_value = 1.5
-    
-    # Output
-    output = nodes.new(type="ShaderNodeOutputMaterial")
-    
-    # Connect
-    links.new(principal.outputs["BSDF"], output.inputs["Surface"])
-    
-    return mat
+    bsdf = nodes.get("Principled BSDF")
 
+    # Set base properties
+    bsdf.inputs["Base Color"].default_value = hex_to_rgb("#1A1A1A")
+    bsdf.inputs["Roughness"].default_value = 0.85
+    bsdf.inputs["Metallic"].default_value = 0.0
 
-# ===== MATERIAL 3: RUBBER =====
-def create_rubber_material(name="Rubber_Black"):
-    """Create textured rubber material with tread pattern"""
+    # Create a tread pattern for the normal map
+    wave_texture = nodes.new(type="ShaderNodeTexWave")
+    wave_texture.inputs["Scale"].default_value = 10.0
+    wave_texture.location = (-600, 0)
+
+    noise_texture = nodes.new(type="ShaderNodeTexNoise")
+    noise_texture.inputs["Scale"].default_value = 5.0
+    noise_texture.location = (-600, -200)
     
-    mat = bpy.data.materials.new(name=name)
+    mix_rgb = nodes.new(type="ShaderNodeMixRGB")
+    mix_rgb.blend_type = 'MIX'
+    mix_rgb.inputs["Fac"].default_value = 0.7
+    mix_rgb.location = (-300, 0)
+
+    bump_node = nodes.new(type="ShaderNodeBump")
+    bump_node.inputs["Strength"].default_value = 0.4
+    bump_node.location = (-150, 0)
+
+    mat.node_tree.links.new(wave_texture.outputs["Color"], mix_rgb.inputs["Color1"])
+    mat.node_tree.links.new(noise_texture.outputs["Fac"], mix_rgb.inputs["Color2"])
+    mat.node_tree.links.new(mix_rgb.outputs["Color"], bump_node.inputs["Height"])
+    mat.node_tree.links.new(bump_node.outputs["Normal"], bsdf.inputs["Normal"])
+    
+    print("Created 'Rubber_Black' material.")
+
+def create_brushed_metal():
+    """Creates a Brushed Metal PBR material."""
+    mat = bpy.data.materials.new(name="Metal_Brushed")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    nodes.clear()
-    
-    # Principled BSDF
-    principal = nodes.new(type="ShaderNodeBsdfPrincipled")
-    principal.inputs["Base Color"].default_value = (0.1, 0.1, 0.1, 1.0)  # Deep black
-    principal.inputs["Metallic"].default_value = 0.0
-    principal.inputs["Roughness"].default_value = 0.85
-    
-    # Color Ramp for Roughness variation
-    color_ramp = nodes.new(type="ShaderNodeValRamp")
-    color_ramp.color_ramp.elements[0].position = 0.75
-    color_ramp.color_ramp.elements[1].position = 0.95
-    
-    # Noise for Roughness
-    noise_rough = nodes.new(type="ShaderNodeTexNoise")
-    noise_rough.inputs["Scale"].default_value = 30
-    noise_rough.inputs["Detail"].default_value = 4
-    
-    # Wave Texture for tread (directional)
-    wave = nodes.new(type="ShaderNodeTexWave")
-    wave.inputs["Scale"].default_value = 100
-    wave.wave_type = 'SINE'
-    
-    # Noise for tread detail
-    noise_tread = nodes.new(type="ShaderNodeTexNoise")
-    noise_tread.inputs["Scale"].default_value = 50
-    
-    # Mix for combined tread
-    mix_tread = nodes.new(type="ShaderNodeMix")
-    mix_tread.data_type = 'FLOAT'
-    mix_tread.inputs["A"].default_value = 0.5
-    mix_tread.inputs["B"].default_value = 0.5
-    
-    # Bump
-    bump = nodes.new(type="ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.5
-    
-    # Output
-    output = nodes.new(type="ShaderNodeOutputMaterial")
-    
-    # Connect
-    links.new(noise_rough.outputs["Fac"], color_ramp.inputs["Fac"])
-    links.new(color_ramp.outputs["Color"], principal.inputs["Roughness"])
-    links.new(wave.outputs["Fac"], mix_tread.inputs["A"])
-    links.new(noise_tread.outputs["Fac"], mix_tread.inputs["B"])
-    links.new(mix_tread.outputs["Result"], bump.inputs["Height"])
-    links.new(bump.outputs["Normal"], principal.inputs["Normal"])
-    links.new(principal.outputs["BSDF"], output.inputs["Surface"])
-    
-    return mat
+    bsdf = nodes.get("Principled BSDF")
 
+    bsdf.inputs["Base Color"].default_value = hex_to_rgb("#C0C0C0")
+    bsdf.inputs["Roughness"].default_value = 0.25
+    bsdf.inputs["Metallic"].default_value = 1.0
 
-# ===== MATERIAL 4: BRUSHED METAL =====
-def create_brushed_metal_material(name="Metal_Brushed"):
-    """Create brushed metal material (for prongs, eyelets, etc.)"""
+    # Create a directional brushing pattern
+    noise_texture = nodes.new(type="ShaderNodeTexNoise")
+    noise_texture.inputs["Scale"].default_value = 150.0
+    noise_texture.location = (-450, 0)
+
+    mapping_node = nodes.new(type="ShaderNodeMapping")
+    # This is the corrected line:
+    mapping_node.inputs["Scale"].default_value[0] = 0.1 # Stretch noise on X-axis
+    mapping_node.location = (-300, 0)
+
+    bump_node = nodes.new(type="ShaderNodeBump")
+    bump_node.inputs["Strength"].default_value = 0.2
+    bump_node.location = (-150, 0)
     
-    mat = bpy.data.materials.new(name=name)
+    mat.node_tree.links.new(noise_texture.outputs["Fac"], mapping_node.inputs["Vector"])
+    mat.node_tree.links.new(mapping_node.outputs["Vector"], bump_node.inputs["Height"])
+    mat.node_tree.links.new(bump_node.outputs["Normal"], bsdf.inputs["Normal"])
+
+    print("Created 'Metal_Brushed' material.")
+
+def create_fabric_weave():
+    """Creates a Fabric Weave PBR material."""
+    mat = bpy.data.materials.new(name="Fabric_Weave")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    nodes.clear()
-    
-    # Principled BSDF
-    principal = nodes.new(type="ShaderNodeBsdfPrincipled")
-    principal.inputs["Base Color"].default_value = (0.8, 0.8, 0.8, 1.0)  # Silver
-    principal.inputs["Metallic"].default_value = 1.0
-    principal.inputs["Roughness"].default_value = 0.25
-    
-    # Directional brushing pattern
-    noise = nodes.new(type="ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 100
-    noise.inputs["Detail"].default_value = 2
-    
-    # Color ramp for brushing effect
-    color_ramp = nodes.new(type="ShaderNodeValRamp")
-    color_ramp.color_ramp.elements[0].position = 0.2
-    color_ramp.color_ramp.elements[1].position = 0.3
-    
-    # Bump
-    bump = nodes.new(type="ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.2
-    
-    # Output
-    output = nodes.new(type="ShaderNodeOutputMaterial")
-    
-    # Connect
-    links.new(noise.outputs["Fac"], color_ramp.inputs["Fac"])
-    links.new(color_ramp.outputs["Color"], bump.inputs["Height"])
-    links.new(bump.outputs["Normal"], principal.inputs["Normal"])
-    links.new(principal.outputs["BSDF"], output.inputs["Surface"])
-    
-    return mat
+    bsdf = nodes.get("Principled BSDF")
+
+    bsdf.inputs["Base Color"].default_value = (0.8, 0.8, 0.8, 1) # Default gray
+    bsdf.inputs["Roughness"].default_value = 0.65
+    bsdf.inputs["Metallic"].default_value = 0.0
+
+    # Create a weave pattern using two wave textures
+    wave_x = nodes.new(type="ShaderNodeTexWave")
+    wave_x.inputs["Scale"].default_value = 40.0
+    wave_x.bands_direction = 'X'
+    wave_x.location = (-450, 100)
+
+    wave_y = nodes.new(type="ShaderNodeTexWave")
+    wave_y.inputs["Scale"].default_value = 40.0
+    wave_y.bands_direction = 'Y'
+    wave_y.location = (-450, -100)
+
+    math_node = nodes.new(type="ShaderNodeMath")
+    math_node.operation = 'MAXIMUM'
+    math_node.location = (-300, 0)
+
+    bump_node = nodes.new(type="ShaderNodeBump")
+    bump_node.inputs["Strength"].default_value = 0.3
+    bump_node.location = (-150, 0)
+
+    mat.node_tree.links.new(wave_x.outputs["Fac"], math_node.inputs[0])
+    mat.node_tree.links.new(wave_y.outputs["Fac"], math_node.inputs[1])
+    mat.node_tree.links.new(math_node.outputs["Value"], bump_node.inputs["Height"])
+    mat.node_tree.links.new(bump_node.outputs["Normal"], bsdf.inputs["Normal"])
+
+    print("Created 'Fabric_Weave' material.")
 
 
-# ===== MATERIAL 5: WOVEN FABRIC =====
-def create_fabric_material(name="Fabric_Weave"):
-    """Create woven fabric material (for shoe mesh, etc.)"""
-    
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    nodes.clear()
-    
-    # Principled BSDF
-    principal = nodes.new(type="ShaderNodeBsdfPrincipled")
-    principal.inputs["Base Color"].default_value = (0.5, 0.5, 0.5, 1.0)  # Gray base
-    principal.inputs["Metallic"].default_value = 0.0
-    principal.inputs["Roughness"].default_value = 0.65
-    
-    # Wave texture for weave pattern
-    wave = nodes.new(type="ShaderNodeTexWave")
-    wave.inputs["Scale"].default_value = 150
-    wave.wave_type = 'SAW'
-    
-    # Noise for fiber detail
-    noise = nodes.new(type="ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 50
-    noise.inputs["Detail"].default_value = 4
-    
-    # Mix textures
-    mix = nodes.new(type="ShaderNodeMix")
-    mix.data_type = 'FLOAT'
-    mix.inputs["A"].default_value = 0.5
-    mix.inputs["B"].default_value = 0.5
-    
-    # Bump
-    bump = nodes.new(type="ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.4
-    
-    # Output
-    output = nodes.new(type="ShaderNodeOutputMaterial")
-    
-    # Connect
-    links.new(wave.outputs["Fac"], mix.inputs["A"])
-    links.new(noise.outputs["Fac"], mix.inputs["B"])
-    links.new(mix.outputs["Result"], bump.inputs["Height"])
-    links.new(bump.outputs["Normal"], principal.inputs["Normal"])
-    links.new(principal.outputs["BSDF"], output.inputs["Surface"])
-    
-    return mat
-
-
-# ===== MAIN EXECUTION =====
-def create_all_materials():
-    """Create all PBR materials"""
-    materials = {
-        "Gold_Polished": create_gold_material(),
-        "Diamond_Clear": create_diamond_material(),
-        "Rubber_Black": create_rubber_material(),
-        "Metal_Brushed": create_brushed_metal_material(),
-        "Fabric_Weave": create_fabric_material(),
-    }
-    
-    print("✓ Created PBR Materials:")
-    for name, mat in materials.items():
-        print(f"  - {name}")
-    
-    return materials
-
-
-# Run on script execution
+# --- Main Execution ---
 if __name__ == "__main__":
-    materials = create_all_materials()
-    print(f"\nTotal: {len(materials)} materials created")
-    print("Assign materials to objects in Material Properties panel")
+    # Clear existing materials to avoid duplicates if script is run multiple times
+    for material in bpy.data.materials:
+        # A check to avoid trying to remove the default 'Dots Stroke' material if it exists
+        if material.name != 'Dots Stroke':
+            bpy.data.materials.remove(material)
+        
+    print("--- Generating PBR Materials ---")
+    create_polished_gold()
+    create_clear_diamond()
+    create_black_rubber()
+    create_brushed_metal()
+    create_fabric_weave()
+    print("--- Material Generation Complete! ---")

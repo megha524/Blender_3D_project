@@ -33,15 +33,26 @@
         }
         model-viewer {
             width: 100%;
-            height: 400px;
+            height: 300px;
             --progress-bar-color: #333;
+        }
+        .model-navigation {
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
         }
         @media (max-width: 768px) {
             model-viewer {
-                height: 300px;
-            }
-            .model-title {
-                font-size: 16px;
+                height: 250px;
             }
         }
         .instructions {
@@ -54,11 +65,12 @@
 <body>
     <div class="container">
         <h1 style="text-align: center; color: #333;">PBR 3D Models - Mobile Viewer</h1>
-        <p class="instructions">Optimized for Android mobile browsers. Pinch to zoom, drag to rotate. Models will load once exported from Blender.</p>
+        <p class="instructions">Optimized for mobile browsers. Pinch to zoom, drag to rotate. Use buttons to switch between models.</p>
 
         <div class="model-section">
-            <h2 class="model-title">Diamond Ring</h2>
+            <h2 id="model-title" class="model-title">Diamond Ring</h2>
             <model-viewer
+                id="model-viewer"
                 src="models/diamond-ring.glb"
                 camera-controls
                 auto-rotate
@@ -66,43 +78,30 @@
                 ar-modes="webxr scene-viewer quick-look"
                 shadow-intensity="1"
                 exposure="1"
-                environment-image="textures/hdri/studio.exr"
-                alt="Photorealistic Diamond Ring with PBR materials">
+                environment-image="textures/hdri/studio.hdr"
+                alt="Photorealistic 3D Model with PBR materials">
                 <div slot="progress-bar"></div>
             </model-viewer>
-        </div>
-
-        <div class="model-section">
-            <h2 class="model-title">Earring Diamond</h2>
-            <model-viewer
-                src="models/earring.glb"
-                camera-controls
-                auto-rotate
-                ar
-                ar-modes="webxr scene-viewer quick-look"
-                shadow-intensity="1"
-                exposure="1"
-                environment-image="textures/hdri/studio.exr"
-                alt="Photorealistic Diamond Earring with PBR materials">
-                <div slot="progress-bar"></div>
-            </model-viewer>
-        </div>
-
-        <div class="model-section">
-            <h2 class="model-title">Nike Shoe</h2>
-            <model-viewer
-                src="models/nike-shoe.glb"
-                camera-controls
-                auto-rotate
-                ar
-                ar-modes="webxr scene-viewer quick-look"
-                shadow-intensity="1"
-                exposure="1"
-                environment-image="textures/hdri/urban.exr"
-                alt="Photorealistic Nike Shoe with PBR materials">
-                <div slot="progress-bar"></div>
-            </model-viewer>
+            <div class="model-navigation">
+                <button onclick="switchModel('models/diamond-ring.glb', 'Diamond Ring', 'textures/hdri/studio.hdr')">Diamond Ring</button>
+                <button onclick="switchModel('models/earring.glb', 'Earring Diamond', 'textures/hdri/studio.hdr')">Earring</button>
+                <button onclick="switchModel('models/nike-shoe.glb', 'Nike Shoe', 'textures/hdri/urban.hdr')">Nike Shoe</button>
+            </div>
         </div>
     </div>
+
+    <script>
+        function switchModel(modelSrc, title, envSrc) {
+            const viewer = document.getElementById('model-viewer');
+            const titleElement = document.getElementById('model-title');
+            viewer.src = modelSrc;
+            titleElement.textContent = title;
+            if (envSrc) {
+                viewer.setAttribute('environment-image', envSrc);
+            } else {
+                viewer.removeAttribute('environment-image');
+            }
+        }
+    </script>
 </body>
 </html>
